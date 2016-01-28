@@ -6,6 +6,9 @@
 
 #include "tree.h"
 
+int TreeIsLeftChild(tree_iter_t current);
+int TreeIsRightChild(tree_iter_t current);
+
 typedef struct tree_node
 {
 	void *data;
@@ -43,6 +46,20 @@ tree_t *TreeCreate(cmp fp)
 
 void TreeDestroy(tree_t *tree)
 {
+	tree_iter_t iter = (assert(tree), TreeBegin(tree));
+	tree_iter_t next = NULL;
+	
+	while(!TreeIsSameIter(iter, TreeEnd(tree)))  
+	{
+		if(TreeIsSameIter(iter, &tree->root)) /* skip root */
+		{
+			iter = TreeNext(iter);
+		}
+		next = TreeNext(iter);
+		free(iter);
+		iter = next;
+	}
+	
 	free(tree);
 	
 	return;
@@ -51,12 +68,20 @@ void TreeDestroy(tree_t *tree)
 /* returns the root of tree of END if tree is empty*/
 tree_iter_t TreeBegin(const tree_t *tree)
 {
+	tree_iter_t iter = (assert(tree), NULL);
+	
 	if(TreeIsEmpty(tree))
 	{
 		return(TreeEnd(tree));
 	}
 	
-	return((tree_iter_t)&tree->root);
+	iter = (tree_iter_t)&tree->root;
+	while(iter->l)
+	{
+		iter = iter->l;
+	}
+	
+	return(iter);
 }
 
 
@@ -69,38 +94,212 @@ void *TreeGetData(tree_iter_t iter)
 {
 	return(iter->data);
 }
-/*
-size_t TreeSize(const tree_t *tree);
-*/
-int TreeIsEmpty(const tree_t *tree)
+
+size_t TreeSize(const tree_t *tree)
 {
-/*	to do */
-	return(666);
+	tree_iter_t iter = NULL;
+	size_t c = 0;
+	
+	if(TreeIsEmpty(tree))
+	{
+		return(c);
+	}
+	
+	iter = TreeBegin(tree);
+	while(!TreeIsSameIter(iter, TreeEnd(tree)))
+	{
+		++c;
+		iter = TreeNext(iter);
+	}
+	
+	return(c);
 }
 
+int TreeIsEmpty(const tree_t *tree)
+{
+	return(tree->end.l == NULL);
+}
+/*
  searches data in tree, 
 returns tree_node if found or END 
 tree_iter_t TreeFind(const tree_t *tree, const void *seek);
+*/
+/* insert tree_node to tree*/
+/*   returns its tree_node if successful,*/
+/*   else END */
+tree_iter_t TreeInsert(tree_t *tree, void *data)
+{
+	tree_iter_t new_node = NULL;
+	tree_iter_t iter = NULL;
+	size_t count = (assert(tree), TreeSize(tree));
+	int cmp = 666;
+	
+	if(tree->end.l == NULL) /* empty tree */
+	{
+		tree->root.data = data;
+		tree->root.p = &tree->end;
+		
+		tree->end.l = &tree->root;
+		
+		return(&tree->root);
+	}
+	new_node = (tree_iter_t)malloc(sizeof(tree_node));
+	assert(new_node);
+	new_node->data = data;
+	
+	iter = TreeBegin(tree);
+	
+	for( ; count; --count)
+	{
+		cmp = tree->fp(data, iter->data);
+		switch(cmp)
+		{
+			case -1:
+				new_node->p = iter;
+				new_node->l = iter->l;
+				new_node->r = NULL;
+				
+				if(!iter->l)
+				{
+					iter->l = new_node;
+					
+					return(new_node);
+				}
+				iter->l->p = new_node;
+				iter->l = new_node;
+			
+				return(new_node);
+				break;
+			case 0:
+			
+				new_node->p = iter;
+				new_node->l = NULL;
+				new_node->r = iter->r;
+				
+				if(!iter->r)
+				{
+					iter->r = new_node;
+					
+					return(new_node);
+				}			
+				iter->r->p = new_node;
+				iter->r = new_node;
+			
+				return(new_node);
+				break;
+			
+			case 1:
+				if(TreeIsSameIter(TreeNext(iter), TreeEnd(tree)))
+				{
+					new_node->p = iter;
+					new_node->l = NULL;
+					new_node->r = NULL;
+				
+					iter->r = new_node;
+				
+					return(new_node);
+				}
+				iter = TreeNext(iter);
+				
+				break;
+				
+			default:
+				return(TreeEnd(tree));	
+				break;		
+		}
+	}
+	return(NULL);
+}
+	
 
- insert tree_node to tree
-   returns its tree_node is successful,
-   else END 
-tree_iter_t TreeInsert(tree_t *tree, void *data);
+/* removes the tree_node with data, */
+/* returns NEXT tree_iter_t with tha DATA or END */
+/*void TreeRemove(tree_t *tree, tree_iter_t iter);*/
 
- removes the tree_node with data, 
- returns NEXT tree_iter_t with tha DATA or END 
-void TreeRemove(tree_t *tree, tree_iter_t iter);
+/* gets the next tree_iter_t  of CURRENT */
+tree_iter_t TreeNext(const tree_iter_t current)
+{
+	tree_iter_t iter = NULL;
+	
+/*	has right child*/
+	if(current->r)
+	{
+		iter = current->r;
+		while(iter->l)
+		{
+			iter = iter->l;
+		}
+		return(iter);
+	}
+	
+	if(TreeIsLeftChild(current))
+	{
+		return(current->p);
+	}
+	
+	while(current->p)
+	{
+		iter = current->p;
+		
+		if(TreeIsLeftChild(iter))
+		{
+			return(iter->p);
+		}
+	}
+	return(NULL);
+}
 
- gets the next tree_iter_t  of CURRENT 
-tree_iter_t TreeNext(const tree_iter_t current);
- gets the prev tree_iter_t  of CURRENT 
-tree_iter_t TreePrev(const tree_iter_t current);
-
+/* gets the prev tree_iter_t  of CURRENT */
+tree_iter_t TreePrev(const tree_iter_t current)
+{
+	tree_iter_t iter = NULL;
+	
+/*	has left child*/
+	if(current->l)
+	{
+		iter = current->l;
+		while(iter->r)
+		{
+			iter = iter->r;
+		}
+		return(iter);
+	}
+	
+	if(TreeIsRightChild(current))
+	{
+		return(current->p);
+	}
+	
+	while(current->p)
+	{
+		iter = current->p;
+		
+		if(TreeIsLeftChild(iter))
+		{
+			return(iter->p);
+		}
+	}
+	return(NULL);
+}
+/*
  Performs an action deteremined by 'action_func' on each element 
   stops upon action_func failure. 
    returns action_func exit status. 
-int TreeForEach(const tree_iter_t begin, const tree_iter_t end, action_func fp, void *param);
+int TreeForEachr(const tree_iter_t begin, const tree_iter_t end, action_func fp, void *param);
 
-   
-int TreeIsSameIter(const tree_iter_t iter1, const tree_iter_t iter2);
-*/
+*/  
+int TreeIsSameIter(const tree_iter_t iter1, const tree_iter_t iter2)
+{
+	return(iter1->data == iter2->data);
+}
+
+
+int TreeIsLeftChild(tree_iter_t current)
+{
+	return(TreeIsSameIter(current, current->p->l));
+}
+
+int TreeIsRightChild(tree_iter_t current)
+{
+	return(TreeIsSameIter(current, current->p->r));
+}
